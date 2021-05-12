@@ -1,0 +1,148 @@
+这里是以mt6739+kernel4.4平台添加gc5025，fm50af为例
+
+1.device/mediatek/common/kernel-headers/kd_imgsensor.h添加摄像头ID与名称
+
+#define GC5025_SENSOR_ID                0x5025
+#define SENSOR_DRVNAME_GC5025_MIPI_RAW            "gc5025_mipi_raw"
+2.在项目配置文件device/mediateksample/k39tv1_bsp_1g/ProjectConfig.mk修改camera信息
+
+CUSTOM_HAL_FLASHLIGHT = constant_flashlight
+CUSTOM_HAL_IMGSENSOR = gc5025_mipi_raw
+CUSTOM_HAL_LENS = fm50af dummy_lens
+ 
+CUSTOM_HAL_MAIN_BACKUP_LENS = 
+CUSTOM_HAL_MAIN_IMGSENSOR = gc5025_mipi_raw
+CUSTOM_HAL_MAIN_LENS = fm50af 
+副摄像头为空：
+CUSTOM_HAL_SUB_BACKUP_LENS = 
+CUSTOM_HAL_SUB_IMGSENSOR = 
+CUSTOM_HAL_SUB_LENS = 
+ 
+CUSTOM_KERNEL_IMGSENSOR = gc5025_mipi_raw
+ 
+CUSTOM_KERNEL_LENS = fm50af dummy_lens
+ 
+CUSTOM_KERNEL_MAIN_BACKUP_LENS = 
+CUSTOM_KERNEL_MAIN_IMGSENSOR = gc5025_mipi_raw
+CUSTOM_KERNEL_MAIN_LENS = fm50af
+副摄像头为空：
+CUSTOM_KERNEL_SUB_BACKUP_LENS = 
+CUSTOM_KERNEL_SUB_IMGSENSOR = 
+CUSTOM_KERNEL_SUB_LENS = 
+3.kernel-4.4/arch/arm/configs/k39tv1_bsp_1g_debug_defconfig配置文件
+
+CONFIG_CUSTOM_KERNEL_IMGSENSOR="gc5025_mipi_raw"
+ 
+#CONFIG_MTK_FLASHLIGHT_RT4505=y
+CONFIG_MTK_FLASHLIGHT_DUMMY_GPIO=y
+4.kernel-4.4/arch/arm/configs/k39tv1_bsp_1g_defconfig配置文件
+
+CONFIG_CUSTOM_KERNEL_IMGSENSOR="gc5025_mipi_raw"
+ 
+#CONFIG_MTK_FLASHLIGHT_RT4505=y
+CONFIG_MTK_FLASHLIGHT_DUMMY_GPIO=y
+5.kernel-4.4/drivers/misc/mediatek/imgsensor/inc/kd_imgsensor.h
+
+#define GC5025_SENSOR_ID                0x5025
+#define SENSOR_DRVNAME_GC5025_MIPI_RAW            "gc5025_mipi_raw"
+6.kernel-4.4/drivers/misc/mediatek/imgsensor/src/common/v1/目录添加gc5025_mipi_raw驱动文件
+
+7.kernel-4.4/drivers/misc/mediatek/imgsensor/src/common/v1/imgsensor_sensor_list.c添加camera gc5025
+
++#if defined(GC5025_MIPI_RAW)
++    {GC5025_SENSOR_ID, SENSOR_DRVNAME_GC5025_MIPI_RAW, GC5025MIPI_RAW_SensorInit},
+8.kernel-4.4/drivers/misc/mediatek/imgsensor/src/common/v1/imgsensor_sensor_list.h
+
+UINT32 GC5025MIPI_RAW_SensorInit(PSENSOR_FUNCTION_STRUCT *pfFunc);
+9.kernel-4.4/drivers/misc/mediatek/imgsensor/src/mt6739/camera_hw/imgsensor_cfg_table.c添加上下电信息
+
++#if defined(GC5025_MIPI_RAW)
++    {
++        SENSOR_DRVNAME_GC5025_MIPI_RAW,
++        {
++            {SensorMCLK, Vol_High, 0},
++            {PDN, Vol_Low, 1},
++            {RST, Vol_Low, 10},
++            {DOVDD, Vol_1800, 5},
++            {DVDD, Vol_1200, 5},
++            {AVDD, Vol_2800, 5},
++            {AFVDD, Vol_2800, 5},
++            {PDN, Vol_High, 5},
++            {RST, Vol_High, 5}
++        },
++    },
++#endif
+10.在kernel-4.4/drivers/misc/mediatek/flashlight/flashlight-device.c增加闪光灯配置信息
+
+-        {0, 0, 0, "flashlights-rt4505", 0, 0},
++        {0, 0, 0, "flashlights-dummy-gpio", 0, 0},
+ 
+
+11.在dts上增加闪光灯配置k39tv1_bsp_1g.dts跟mt6739.dts
+
++    /**flashlights_rt4505: flashlights_rt4505 {
+         compatible = "mediatek,flashlights_rt4505";
++    };*/
++    strobe: strobe {
++        compatible = "mediatek,flashlights_dummy_gpio";
+     };
+ 
++&strobe {
++    pinctrl-names = "xxx_high",
++            "xxx_low";
++    pinctrl-0 = <&xxx_high>;
++    pinctrl-1 = <&xxx_low>;
++    status = "okay";
++};
+&pio {
++    xxx_high: xxx_high {
++        pins_cmd_dat {
++            pins = <PINMUX_GPIO125__FUNC_GPIO125>;
++            slew-rate = <1>;
++            output-high;
++        };
++    };
+    xxx_low: xxx_low {
++        pins_cmd_dat {
++            pins = <PINMUX_GPIO125__FUNC_GPIO125>;
++            slew-rate = <1>;
++            output-low;
++        };
++    };
++
++};
+12.vendor/mediatek/proprietary/custom/mt6739/hal/imgsensor/目录添加厂家提供的文件gc5025_mipi_raw
+
+13.vendor/mediatek/proprietary/custom/mt6739/hal/imgsensor_src/sensorlist.cpp添加信息
+
++#if defined(GC5025_MIPI_RAW)
++    RAW_INFO(GC5025_SENSOR_ID, SENSOR_DRVNAME_GC5025_MIPI_RAW, NULL),
+14.vendor/mediatek/proprietary/custom/mt6739/hal/lens/src/lenslist.cpp
+
+ #if defined(FM50AF)
++    {GC5025_SENSOR_ID, FM50AF_LENS_ID, "FM50AF", pFM50AF_getDefaultData},
+ #endif
+15.vendor/mediatek/proprietary/custom/mt6739/hal/sendepfeature/添加gc5025_mipi_raw文件夹放置效果文件
+
+           config.ftbl.gc5025mipi_raw.h
+
+16.vendor/mediatek/proprietary/hardware/mtkcam/legacy/platform/mt6739/core/featureio/drv/strobe/flashlight_drv.cpp更改
+
+让获取duty没有返回值，这样才能正常使用闪光灯
+-        err = getPreOnTimeMsDuty(m_duty, &minPreOnTime);
++        /**err = */getPreOnTimeMsDuty(m_duty, &minPreOnTime);
+ 
+
+17.添加af驱动位置
+
+  kernel-4.4\drivers\misc\mediatek\lens\main\common
+
+   vendor\mediatek\proprietary\custom\mt6739\hal\lens
+
+18.闪光灯使用的驱动文件
+
+ kernel-4.4/drivers/misc/mediatek/flashlight/flashlights-dummy-gpio.c
+
+ 
+
+另外，还要修改dws文件的i2c地址以及一些ldo电源的输出配置，dts上的camera是配置好的，不需要修改
