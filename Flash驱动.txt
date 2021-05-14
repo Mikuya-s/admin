@@ -1,0 +1,138 @@
+一、Flash驱动涉及到的文件包含：
+
+mediatek /custom/common/kernel/flashlight/src/kd_flashlightlist.c
+
+mediatek /custom/huaqin_bsp/at808p/base/kernel/flashlight/constant_flashlight/leds_strobe.c
+
+mediatek /platform/mt6592/hardware/mtkcam/core/featureio/drv/strobe/flashlight_drv.cpp
+
+mediatek/platform/mt6592/hardware/mtkcam/core/featureio/pipe/aaa/flash_mgr/flash_mgr.cpp
+
+mediatek/platform/mt6592/hardware/mtkcam/core/featureio/pipe/aaa/flash_mgr/flash_cct.cpp
+
+mediatek/platform/mt6592/hardware/mtkcam/acdk/src/cct/if/cct_feature.cpp
+
+二、Flash驱动代码流程分析：
+
+
+
+    步骤一：
+
+mediatek /custom/common/kernel/flashlight/src/kd_flashlightlist.c
+
+主要完成设备的注册和初始化。
+
+1.注册一个平台设备：名为"kd_camera_flashlight"；
+
+2.注册一个平台驱动，name和我们的devices name同名，这个名字主要用来和HAL层的name做匹配用；
+
+3.对IOCTL的一个填充，供HAL调用；
+
+4.做一个接口主要跟我们实际使用的Flash驱动对接，以kdFlashlightList罗列出来；
+
+
+
+
+    步骤二：
+
+mediatek/custom/huaqin_bsp/at808p/base/kernel/flashlight/constant_flashlight/leds_strobe.c
+
+1.      这个文件就是我们实际性的使用的Flash驱动文件，从
+
+mediatek/config/huaqin92_wet_b2a_tdd/xxx/ProjectConfig.mk文件中CUSTOM_KERNEL_FLASHLIGHT配置获取具体使用的Flash驱动。
+
+如：
+
+CUSTOM_HAL_FLASHLIGHT= constant_flashlight
+
+CUSTOM_KERNEL_FLASHLIGHT = constant_flashlight
+
+2.      该文件和kd_flashlightlist.c文件的对接函数为： 
+
+323 MUINT32constantFlashlightInit(PFLASHLIGHT_FUNCTION_STRUCT *pfFunc)
+
+3.      这个文件完成的任务是填充以下几个函数：
+
+315FLASHLIGHT_FUNCTION_STRUCT constantFlashlightFunc=
+316{ 
+317     constant_flashlight_open,
+318     constant_flashlight_release,
+319     constant_flashlight_ioctl
+320 };
+
+4.      我们主要分析的是constant_flashlight_ioctl，以为这是跟HAL实际握手的接口。
+
+
+
+ 
+    步骤三：
+
+mediatek/platform/mt6592/hardware/mtkcam/core/featureio/drv/strobe/flashlight_drv.cpp
+
+这个文件完成的任务比较多，主要是一些类的实现和定义。
+
+825 intFlashlightDrv::setFlashlightModeConf(unsigned long a_strobeMode)
+897 intFlashlightDrv::setCaptureFlashlightConf(unsigned long a_strobeWidth)
+952 intFlashlightDrv::setCaptureDelay(unsigned int value)
+1021 intFlashlightDrv::getDuty(int* duty)
+1090 intFlashlightDrv::lowPowerDetectEnd(int* isLowPower)
+
+主要是为flash_mgr.cpp提供接口。
+
+                      
+
+
+
+    步骤四：           
+
+mediatek/platform/mt6592/hardware/mtkcam/core/featureio/pipe/aaa/flash_mgr/flash_mgr.cpp
+
+实现闪光灯模式的设置和获取、拍照/摄像预览的开启和终止、闪光灯设备的打开和关闭等等。
+
+1479 void FlashMgr::setTorchOnOff(int en)
+2276 intFlashMgr::setFlashMode(int mode)
+
+
+
+
+
+    步骤五：
+             
+mediatek/platform/mt6592/hardware/mtkcam/core/featureio/pipe/aaa/flash_mgr/flash_cct.cpp
+
+调用lash_mgr.cpp中的函数来给cct_feature.cpp提供接口。
+
+128 int FlashMgr::cctFlashEnable(int en)
+129 {
+130    LogInfo("cctFlashEnable(en=%d) line=%d",en,__LINE__);
+131     if(en==1)
+132     {
+133        setFlashMode(FLASHLIGHT_FORCE_ON);
+134     }
+135     else
+136     {
+137        setFlashMode(FLASHLIGHT_FORCE_OFF);
+138     }
+139     return 0;
+140 }
+
+
+
+
+
+
+    步骤六：
+
+mediatek/platform/mt6592/hardware/mtkcam/acdk/src/cct/if/cct_feature.cpp
+
+调用flash_cct.cpp中的函数，并以IOCTL的形式进行封装，供更上一层次调用。具体的没有在继续跟下去，有兴趣的话，可以再往上分析分析。
+
+MINT32 CctImp::aaaCCTFeatureControl
+361    case ACDK_CCT_OP_FLASH_ENABLE:
+362        err = FlashMgr::getInstance()->cctFlashEnable(1); //YosenFlash
+363        break;
+364    case ACDK_CCT_OP_FLASH_DISABLE:
+365        err = FlashMgr::getInstance()->cctFlashEnable(0); //YosenFlash
+
+————————————————
+
